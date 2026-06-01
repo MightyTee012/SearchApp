@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Google Drive File Picker for Search App</title>
+  <meta charset="utf-8" />
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    button { padding: 10px 15px; font-size: 16px; cursor: pointer; background: #4285F4; color: white; border: none; border-radius: 4px; }
+    button:disabled { background: #cccccc; }
+    #file-info { margin-top: 20px; padding: 15px; border: 1px solid #ddd; display: none; background: #f9f9f9; }
+  </style>
+</head>
+<body>
+
+  <h2>Connect to Google Drive</h2>
+  <p>Select your data file directly from Drive without downloading it to your office PC.</p>
+  
+  <!-- Buttons to handle authentication and opening the picker -->
+  <button id="auth_button" onclick="handleAuthClick()">1. Authorize Google Drive</button>
+  <button id="picker_button" onclick="createPicker()" disabled>2. Browse My Drive</button>
+
+  <div id="file-info">
+    <h3>Selected File Details:</h3>
+    <p><strong>Name:</strong> <span id="file-name"></span></p>
+    <p><strong>File ID:</strong> <span id="file-id"></span></p>
+    <p><em>Now your app can use this File ID to read the data straight from Google!</em></p>
+  </div>
+
+  <script type="text/javascript">
+    // 1. REPLACE THESE WITH YOUR GOOGLE CLOUD CREDENTIALS
+    const API_KEY = 'YOUR_API_KEY'; 
+    const CLIENT_ID = 'YOUR_CLIENT_ID';
+
+    // The "Scope" tells Google exactly what permission your app is asking for.
+    // 'drive.readonly' allows your app to read files but NOT edit or delete them.
+    const SCOPES = 'https://www.googleapis.com/auth/drive.readonly';
+
+    let accessToken = null;
+    let pickerInited = false;
+    let gapiInited = false;
+
+    // 2. Load the Google API Identity Services libraries automatically
+    function gapiLoaded() {
+      gapi.load('picker', () => { pickerInited = true; });
+    }
+
+    function gisLoaded() {
+      tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: CLIENT_ID,
+        scope: SCOPES,
+        callback: '', // defined dynamically later
+      });
+      gapiInited = true;
+    }
+
+    // 3. User logs in and authorizes your web app
+    function handleAuthClick() {
+      tokenClient.callback = async (response) => {
+        if (response.error !== undefined) {
+          throw (response);
+        }
+        accessToken = response.access_token;
+        document.getElementById('picker_button').removeAttribute('disabled');
+        document.getElementById('auth_button').innerText = 'Authenticated!';
+        document.getElementById('auth_button').disabled = true;
+      };
+
+      // Request a token (pops up the Google login window)
+      if (accessToken === null) {
+        tokenClient.requestAccessToken({prompt: 'consent'});
+      } else {
+        tokenClient.requestAccessToken({prompt: ''});
+      }
+    }
+
+    // 4. Create and display the Google Picker window
+    function createPicker() {
+      if (pickerInited && accessToken) {
+        const view = new google.picker.View(google.picker.ViewId.DOCS);
+        
+        // This builds the actual pop-up browser window
+        const picker = new google.picker.PickerBuilder()
+            .addView(view)
+            .setOAuthToken(accessToken)
+            .setDeveloperKey(API_KEY)
+            .setCallback(pickerCallback) // Runs when a user selects a file
+            .build();
+            
+        picker.setVisible(true);
+      }
+    }
+
+    // 5. This triggers when you click "Select" on a file inside the picker
+    function pickerCallback(data) {
+      if (data[google.picker.Response.ACTION] == google.picker.Action.PICKED) {
+        const doc = data[google.picker.Response.DOCUMENTS][0];
+        
+        const fileName = doc[google.picker.Document.NAME];
+        const fileId = doc[google.picker.Document.ID];
+
+        // Display the selected file details on your webpage
+        document.getElementById('file-name').innerText = fileName;
+        document.getElementById('file-id').innerText = fileId;
+        document.getElementById('file-info').style.display = 'block';
+
+        // NEXT STEP: Send this fileId and accessToken to your backend server 
+        // to read the file contents directly from Google's servers.
+        console.log("File ID ready to pass to backend:", fileId);
+      }
+    }
+  </script>
+
+  <!-- Load Google's official scripts -->
+  <script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
+  <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
+</body>
+</html>
