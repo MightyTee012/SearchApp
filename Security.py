@@ -4,13 +4,13 @@ def check_password():
     """Returns True if the user has entered the correct password."""
 
 def password_entered():
-        """Checks whether a password entered by the user is correct."""
-        # 🔒 FIX: Read the password securely from Streamlit's secret manager
-        if st.session_state["password"] == st.secrets["APP_PASSWORD"]:
-            st.session_state["password_correct"] = True
-            del st.session_state["password"]  
-        else:
-            st.session_state["password_correct"] = False
+    """Checks whether a password entered by the user is correct."""
+    # 🔒 FIX: Read the password securely from Streamlit's secret manager
+    if st.session_state["password"] == st.secrets["APP_PASSWORD"]:
+        st.session_state["password_correct"] = True
+        del st.session_state["password"]  
+    else:
+        st.session_state["password_correct"] = False
 
     # First run / baseline check
     if st.session_state.get("password_correct", False):
