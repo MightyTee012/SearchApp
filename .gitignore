@@ -1,0 +1,16 @@
+.streamlit/
+*.csv
+*.xlsx
+.env
+images
+
+.streamlit/secrets.toml
+secrets.toml
+__pycache__\AppStyle.cpython-314.pyc
+
+venv/
+ENV/
+.venv/
+
+**/__pycache__/
+*.pyc
