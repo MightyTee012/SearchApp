@@ -187,7 +187,6 @@ else:
         st.session_state.last_loaded_name = active_file.name
 
     with side_control_panel:
-        # Wrap tabs creation safely in case columns are empty
         try:
             tab_setup, tab_search, tab_download = st.tabs([
                 "⚙️1.SETUP", 
@@ -220,16 +219,36 @@ else:
                 st.rerun()
 
             st.markdown("---")
-            st.markdown("### 👁️ Display Columns")
+            st.markdown("### ✅ Display Columns")
             
+            # --- INTERACTIVE ACTION BUTTONS ---
+            btn_col1, btn_col2 = st.columns(2, gap="small")
+            with btn_col1:
+                if st.button("✅ Select All", use_container_width=True):
+                    st.session_state.confirmed_cols = all_headers
+                    for h_col in all_headers:
+                        st.session_state[f"chk_{h_col}"] = True
+                    st.rerun()
+            with btn_col2:
+                if st.button("❌ Clear All", use_container_width=True):
+                    st.session_state.confirmed_cols = []
+                    for h_col in all_headers:
+                        st.session_state[f"chk_{h_col}"] = False
+                    st.rerun()
+            
+            # Form housing the scrollable checkbox stream
             with st.form(key="batch_column_form", border=False):
-                picked_columns = st.multiselect(
-                    "Select columns to stream:",
-                    options=all_headers,
-                    default=[c for c in st.session_state.confirmed_cols if c in all_headers],
-                    placeholder="Choose columns..."
-                )
+                picked_columns = []
                 
+                with st.container(height=280, border=True):
+                    for h_col in all_headers:
+                        # Establish state connection safely
+                        is_checked = h_col in st.session_state.confirmed_cols
+                        
+                        if st.checkbox(h_col, value=is_checked, key=f"chk_{h_col}"):
+                            picked_columns.append(h_col)
+                
+                st.markdown("<div style='margin-bottom: 5px;'></div>", unsafe_allow_html=True)
                 load_triggered = st.form_submit_button("⚡ APPLY & LOAD COLUMNS", use_container_width=True)
                 
                 if load_triggered:
@@ -249,7 +268,7 @@ else:
             # --- SEARCH ENGINE INTERFACE GENERATION ---
             with side_control_panel:
                 with tab_search:
-                    st.markdown("### 🔍 Master Filters")
+                    st.markdown("###🔍Main Search")
                     st.button("❌ CLEAR ", on_click=clear_all_searches_and_filters, key="reset_search_deck_btn", use_container_width=True)
                     st.markdown("<div style='margin-bottom: 2px;'></div>", unsafe_allow_html=True)
                     
@@ -337,4 +356,4 @@ else:
         with main_data_window:
             clean_title = os.path.splitext(active_file.name)[0]
             st.markdown(f'<div style="display: flex; align-items: center; gap: 5px; margin-top: -15px; margin-bottom: 2px;"><img src="https://i.pinimg.com/originals/c5/ee/51/c5ee5152fd8575cd966fa258addca1a1.gif" style="height: 100px; width: auto; image-rendering: pixelated; mix-blend-mode: multiply;"><span style="font-size: 30px; font-weight: 700;">{clean_title}</span></div>', unsafe_allow_html=True)
-            st.info("💡 **File Staged Successfully!** Please use the **Column Picker** inside the `⚙️1.SETUP` tab on the left to select your targets, then click **APPLY & LOAD COLUMNS**.")
+            st.error("⚠️ **No Columns Selected.** Please select at least one header from the checklist layout on the left, then click Apply.")
