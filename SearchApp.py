@@ -125,7 +125,7 @@ def load_large_data(file):
                 df[col] = df[col].astype(str).replace(['nan', '<NA>'], '')
         return df
     except Exception as e:
-        # 🚨 NOTIFICATION: Clear visual indicator inside the layout if file reading crashes
+        # Clear visual indicator inside the layout if file reading crashes
         st.error(f"🚨 **Upload Processing Failed!**")
         st.info(f"**Error Details:** {e}\n\n*Tip: Make sure the file isn't corrupted, password-protected, or currently open in Excel.*")
         return None
@@ -142,7 +142,7 @@ st.markdown(
 )
 
 # Outer Layout Setup
-side_control_panel, main_data_window = st.columns([0.20, 0.80], gap="medium")
+side_control_panel, main_data_window = st.columns([0.20, 0.80], gap="small")
 active_file = st.session_state.file_capsule
 
 with side_control_panel:
@@ -177,7 +177,7 @@ with side_control_panel:
 
 if active_file is not None:
     # 🔄 LOADING BAR: Shows an active reading status window to prevent blind waiting
-    with st.spinner("🔮 Nonoy's engine is optimizing your dataset... Please wait..."):
+    with st.spinner("⏳Nonoy's engine is optimizing your dataset... Please wait..."):
         df = load_large_data(active_file)
     
     if df is not None:
@@ -201,7 +201,7 @@ if active_file is not None:
                         st.session_state.visible_cols_widget = df.columns.tolist()
                         st.rerun()
                 with c_b2:
-                    if st.button("None", key="none_t1", use_container_width=True):
+                    if st.button("Clear", key="none_t1", use_container_width=True):
                         st.session_state.visible_cols_widget = [df.columns.tolist()[0]]
                         st.rerun()
                 
@@ -229,7 +229,7 @@ if active_file is not None:
                 st.markdown("---")
                 st.markdown("### ⚙️Sub-Filters")
                 
-                with st.container(height=360, border=False):
+                with st.container(height=300, border=False):
                     for col_name in visible_columns:
                         st.text_input(
                             f"{col_name}", 
@@ -240,7 +240,7 @@ if active_file is not None:
                 st.form_submit_button(label="⚡ RUN SEARCH FILTERS", use_container_width=True)
 
         with tab_download:
-            st.markdown("### 💾 Export Deck")
+            st.markdown("### 💾Export Deck")
             def convert_df_to_excel(df_to_save):
                 output = BytesIO()
                 with pd.ExcelWriter(output, engine='openpyxl') as writer:
@@ -266,7 +266,7 @@ if active_file is not None:
                     st.download_button(
                         label="👌 Export Excel File",
                         data=excel_file,
-                        file_name="db_browser_export.xlsx",
+                        file_name="Salamat_Nonoy.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                         use_container_width=True 
                     )
@@ -277,9 +277,10 @@ if active_file is not None:
             clean_title = os.path.splitext(active_file.name)[0]
             st.markdown(f'<div style="display: flex; align-items: center; gap: 5px; margin-top: -15px; margin-bottom: 2px;"><img src="https://i.pinimg.com/originals/c5/ee/51/c5ee5152fd8575cd966fa258addca1a1.gif" style="height: 100px; width: auto; image-rendering: pixelated; mix-blend-mode: multiply;"><span style="font-size: 30px; font-weight: 700; color: #0A1931;">{clean_title}</span></div>', unsafe_allow_html=True)
             
-            # 🕵️ NOTIFICATION: Explicit error alert if a search returns 0 matched records
+            # Explicit error alert if a search returns 0 matched records
             if filtered_df.empty:
-                st.error("🕵️ **No matching records found!** Check your spelling or try clearing some filters in the Search panel.")
+                st.error("🙈😫 **DI MASEARCH NGANIII!!!!** " \
+                "CHECK SPELLING MUNA BAGO SEARCH OR CLEAR FILTERS TAPOS SEARCH ULIT")
             else:
                 st.dataframe(
                     filtered_df,
