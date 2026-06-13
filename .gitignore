@@ -14,3 +14,7 @@ ENV/
 
 **/__pycache__/
 *.pyc
+ 
+ images/
+ .streamlit/
+ .devcontainer/
