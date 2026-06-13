@@ -67,6 +67,9 @@ def inject_modern_css():
         
     st.markdown(f"""
         <style>
+        /* 0. PULL THE PREMIUM POPPINS FONT FROM GOOGLE */
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');
+
         /* 1. GLOBAL STREAMLIT NATIVE HEADER/FOOTER NUKE */
         header[data-testid="stHeader"] {{
             visibility: hidden !important;
@@ -192,10 +195,10 @@ def inject_modern_css():
             border-color: #0A1931 !important;
         }}
 
-        /* 6. BASELINE READABILITY */
-        html, body, .stApp {{
+        /* 6. BASELINE READABILITY & GLOBAL TYPOGRAPHY OVERHAUL */
+        html, body, .stApp, input, button, select, textarea, .stTabs {{
             font-size: 18px !important;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+            font-family: 'Poppins', -apple-system, BlinkMacSystemFont, sans-serif !important;
             color: #0A1931 !important;
         }}
         
@@ -260,7 +263,6 @@ def inject_modern_css():
             border: 2px solid #0A1931 !important;
             width: 100% !important;
             flex-grow: 1 !important; 
-
         }}
 
         [data-testid="stDataFrame"] div {{
@@ -273,7 +275,7 @@ def inject_modern_css():
         }}
 
         [data-testid="stDataFrame"] tbody tr:nth-of-type(even) {{
-            background-color: #A3C1AD !important; /* High contrast mint or choose #CBDCEB for solid blue */
+            background-color: #A3C1AD !important;
         }}
 
         </style>
