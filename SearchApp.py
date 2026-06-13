@@ -16,7 +16,17 @@ if sys.platform == 'win32':
         warnings.simplefilter("ignore", DeprecationWarning)
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
-# Initialize structural memory states for themes and file streams
+# --- INIT PAGE CONFIG (MUST be the absolute first Streamlit command executed) ---
+if "page_configured" not in st.session_state:
+    st.set_page_config(
+        page_title="Team Permitting",
+        page_icon="📊", 
+        layout="wide",
+        initial_sidebar_state="collapsed" 
+    )
+    st.session_state.page_configured = True
+
+# Initialize structural memory states safely
 if "dark_mode" not in st.session_state:
     st.session_state.dark_mode = False
 if "file_capsule" not in st.session_state:
@@ -24,19 +34,12 @@ if "file_capsule" not in st.session_state:
 if "confirmed_cols" not in st.session_state:
     st.session_state.confirmed_cols = []
 
-# Imported using the exact case matching your file name
-import AppStyle as style
-
-# --- INIT PAGE CONFIG ---
-st.set_page_config(
-    page_title="Team Permitting",
-    page_icon="📊", 
-    layout="wide",
-    initial_sidebar_state="collapsed" 
-)
-
-# Apply dynamic active theme styling (Light vs Dark)
-style.inject_modern_css()
+# Try importing your style sheet safely
+try:
+    import AppStyle as style
+    style.inject_modern_css()
+except Exception as e:
+    st.warning(f"Note: Could not inject custom AppStyle themes ({e}). Running on default theme.")
 
 # --- HIGH-DENSITY SCREEN OPTIMIZER ---
 st.markdown("""
@@ -50,9 +53,6 @@ st.markdown("""
         }
         div[data-testid="stVerticalBlock"] {
             gap: 0.6rem !important;
-        }
-        body {
-            overflow: hidden;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -86,7 +86,8 @@ def scan_file_headers(file):
         else:
             df_headers = pd.read_excel(file, engine='openpyxl', nrows=0)
         return df_headers.columns.tolist()
-    except Exception:
+    except Exception as e:
+        st.error(f"Error reading file headers: {e}")
         return []
 
 # --- OPTIMIZED BULLETPROOF DATA PROCESSING ENGINE ---
@@ -168,7 +169,7 @@ if active_file is None:
         st.session_state.file_capsule = raw_upload
         st.rerun()
         
-    st.info("💡 **Workspace Idle.** Drop a source data file into the setup panel above to instantly configure features, dark mode controls, and display column layouts.")
+    st.info("💡 **Workspace Idle.** Drop a source data file into the setup panel above to instantly configure features.")
 
 # ==========================================
 # 🎯 PHASE 2: DASHBOARD VIEW (ONCE FILE IS UPLOADED)
@@ -177,26 +178,35 @@ else:
     # Outer Layout Setup for App Panel
     side_control_panel, main_data_window = st.columns([0.20, 0.80], gap="small")
     
-    # Scan the layout headers first to know what columns exist
+    # Scan headers safely
     all_headers = scan_file_headers(active_file)
     
-    # 🔍 FIX: If it's a brand new file, automatically confirm ALL columns right away
+    # Auto-initialize columns to all columns if it's a new file
     if "last_loaded_name" not in st.session_state or st.session_state.last_loaded_name != active_file.name:
-        st.session_state.confirmed_cols = all_headers  # Default straight to all columns
+        st.session_state.confirmed_cols = all_headers
         st.session_state.last_loaded_name = active_file.name
 
     with side_control_panel:
-        tab_setup, tab_search, tab_download = st.tabs([
-            "⚙️1.SETUP", 
-            "🔍2.SEARCH", 
-            "💾3.EXPORT"
-        ])
+        # Wrap tabs creation safely in case columns are empty
+        try:
+            tab_setup, tab_search, tab_download = st.tabs([
+                "⚙️1.SETUP", 
+                "🔍2.SEARCH", 
+                "💾3.EXPORT"
+            ])
+        except Exception:
+            st.error("Failed to generate application tabs. Please unload file or check formatting.")
+            st.stop()
         
         with tab_setup:
             st.markdown("---")
             theme_label = "☀️ Switch to Light Mode" if st.session_state.dark_mode else "🌙 Switch to Dark Mode"
             if st.button(theme_label, use_container_width=True):
                 st.session_state.dark_mode = not st.session_state.dark_mode
+                try:
+                    style.inject_modern_css()
+                except:
+                    pass
                 st.rerun()
                 
             st.markdown("---")
@@ -211,7 +221,6 @@ else:
 
             st.markdown("---")
             st.markdown("### 👁️ Display Columns")
-            st.markdown("<small>Pick your target headers, then click the button below to load:</small>", unsafe_allow_html=True)
             
             with st.form(key="batch_column_form", border=False):
                 picked_columns = st.multiselect(
@@ -329,8 +338,3 @@ else:
             clean_title = os.path.splitext(active_file.name)[0]
             st.markdown(f'<div style="display: flex; align-items: center; gap: 5px; margin-top: -15px; margin-bottom: 2px;"><img src="https://i.pinimg.com/originals/c5/ee/51/c5ee5152fd8575cd966fa258addca1a1.gif" style="height: 100px; width: auto; image-rendering: pixelated; mix-blend-mode: multiply;"><span style="font-size: 30px; font-weight: 700;">{clean_title}</span></div>', unsafe_allow_html=True)
             st.info("💡 **File Staged Successfully!** Please use the **Column Picker** inside the `⚙️1.SETUP` tab on the left to select your targets, then click **APPLY & LOAD COLUMNS**.")
-        with side_control_panel:
-            with tab_search:
-                st.warning("⚠️ Choose columns first.")
-            with tab_download:
-                st.warning("⚠️ Choose columns first.")
