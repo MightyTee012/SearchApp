@@ -7,13 +7,12 @@ from io import BytesIO
 import pandas as pd
 import streamlit as st
 
-# --- 1. ABSOLUTE PATH FORCE ENGINE ---
-# (Must run at the very top so Linux servers can find your local files)
+
 current_dir = os.path.dirname(os.path.abspath(__file__))
 if current_dir not in sys.path:
     sys.path.insert(0, current_dir)
 
-# Force Windows selector loop safety
+
 if sys.platform == 'win32':
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", DeprecationWarning)
@@ -21,7 +20,6 @@ if sys.platform == 'win32':
 
 # Now we safely import your custom helper files
 import AppStyle as style
-from Security import check_password
 
 # --- 2. INIT PAGE CONFIG ---
 # (CRITICAL: This must be the absolute first Streamlit command executed!)
@@ -31,10 +29,6 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed" 
 )
-
-# --- 3. RUN THE SECURITY CHECK FIRST ---
-if not check_password():
-    st.stop()  # 🛑 HALT! Don't run anything below if login fails
 
 # --- 4. APPLY CENTRAL DESIGN RULES AFTER LOGIN ---
 style.inject_modern_css()
@@ -140,7 +134,7 @@ def load_large_data(file):
 # --- MAIN BRANDING HEADER ---
 st.markdown(
     f"""
-    <div style="display: flex; align-items: center; gap: 12px; height: 65px; margin-bottom: 5px; margin-top: -15px;">
+    <div style="display: flex; align-items: center; gap: 12px; height: 65px; margin-bottom: 5px; margin-top: -15px; background: transparent;">
         <img src="https://i.pinimg.com/originals/15/c1/44/15c144e8dc552a100b3292d268854499.gif" style="height: 60px; width: auto; image-rendering: pixelated; mix-blend-mode: multiply;">
         <span style="font-size: 24px; font-weight: 800; color: #0A1931; font-family: 'Source Sans Pro', sans-serif;">GAWA NI NONOY 👌</span>
     </div>
@@ -280,7 +274,7 @@ if active_file is not None:
                 hide_index=True,
                 column_config={col: st.column_config.TextColumn(col, width="large", disabled=True) for col in visible_columns}
             )
-            st.markdown(f"""<div style="display: flex; justify-content: space-between; align-items: center; padding: 0.1rem 0.5rem; background:#f8f9fa; border-radius:6px; font-size:20px; margin-top: 2px;"><div>📊 <b>Rows Viewable:</b> {len(filtered_df):,} of {len(df):,} records | 📋 <b>Columns Visible:</b> {len(visible_columns)} of {len(df.columns)}</div><div><img src="https://dl.glitter-graphics.com/pub/3709/3709531e18qrw4sle.gif" style="height: 100px; width: auto; image-rendering: pixelated; mix-blend-mode: multiply;"></div></div>""", unsafe_allow_html=True)
+            st.markdown(f"""<div style="display: flex; justify-content: space-between; align-items: center; padding: 0.1rem 0.5rem; background: transparent; border-radius:6px; font-size:20px; margin-top: 2px;"><div>📊 <b>Rows Viewable:</b> {len(filtered_df):,} of {len(df):,} records | 📋 <b>Columns Visible:</b> {len(visible_columns)} of {len(df.columns)}</div><div><img src="https://dl.glitter-graphics.com/pub/3709/3709531e18qrw4sle.gif" style="height: 100px; width: auto; image-rendering: pixelated; mix-blend-mode: multiply;"></div></div>""", unsafe_allow_html=True)
 else:
     with side_control_panel:
         with tab_search:

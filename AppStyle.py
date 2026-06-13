@@ -275,5 +275,6 @@ def inject_modern_css():
         [data-testid="stDataFrame"] tbody tr:nth-of-type(even) {{
             background-color: #A3C1AD !important; /* High contrast mint or choose #CBDCEB for solid blue */
         }}
+
         </style>
     """, unsafe_allow_html=True)
