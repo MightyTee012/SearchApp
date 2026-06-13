@@ -16,10 +16,18 @@ if sys.platform == 'win32':
         warnings.simplefilter("ignore", DeprecationWarning)
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
+# Initialize structural memory states for themes and file streams
+if "dark_mode" not in st.session_state:
+    st.session_state.dark_mode = False
+if "file_capsule" not in st.session_state:
+    st.session_state.file_capsule = None
+if "confirmed_cols" not in st.session_state:
+    st.session_state.confirmed_cols = []
+
 # Imported using the exact case matching your file name
 import AppStyle as style
 
-# --- 2. INIT PAGE CONFIG ---
+# --- INIT PAGE CONFIG ---
 st.set_page_config(
     page_title="Team Permitting",
     page_icon="📊", 
@@ -27,7 +35,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed" 
 )
 
-# --- 4. APPLY CENTRAL DESIGN RULES AFTER LOGIN ---
+# Apply dynamic active theme styling (Light vs Dark)
 style.inject_modern_css()
 
 # --- HIGH-DENSITY SCREEN OPTIMIZER ---
@@ -48,12 +56,6 @@ st.markdown("""
         }
     </style>
 """, unsafe_allow_html=True)
-
-# --- THE STABLE CAPSULE STORAGE LAYER ---
-if "file_capsule" not in st.session_state:
-    st.session_state.file_capsule = None
-if "confirmed_cols" not in st.session_state:
-    st.session_state.confirmed_cols = []
 
 # --- HELPER UTILITIES ---
 def clear_all_searches_and_filters():
@@ -99,7 +101,6 @@ def load_large_data(file, usecols=None):
 
         for col in df.columns:
             col_lower = col.lower()
-            # 🛡️ STRICT SHIELD: Only run timestamp formatting if the column name looks like a date
             is_target_date_column = any(k in col_lower for k in ['date', 'time', 'prepared', 'validity', 'valid', 'timestamp'])
 
             if is_target_date_column:
@@ -108,7 +109,6 @@ def load_large_data(file, usecols=None):
                         return ""
                     val_str = str(val).strip()
                     
-                    # Check Excel numeric serial numbers safely
                     if val_str.replace('.', '', 1).isdigit():
                         try:
                             numeric_days = float(val_str)
@@ -118,8 +118,6 @@ def load_large_data(file, usecols=None):
                                     return dt.strftime('%B %d, %Y')
                         except:
                             pass
-                    
-                    # Handle normal string dates, completely dodging Year 1 anomalies
                     try:
                         if any(bad in val_str for bad in ['0001', '1-01-01', '0000']):
                             return ""
@@ -132,14 +130,13 @@ def load_large_data(file, usecols=None):
 
                 df[col] = df[col].apply(safe_isolate_timestamp)
             else:
-                # Standard text/numeric columns bypass all timestamp conversion entirely
                 df[col] = df[col].fillna('').astype(str).str.strip().str.replace(r'\.0$', '', regex=True)
                 df[col] = df[col].replace(['nan', '<NA>', 'None', 'NaN'], '')
 
         return df
     except Exception as e:
         st.error(f"🚨 **Upload Processing Failed!**")
-        st.info(f"**Error Details:** {e}\n\n*Tip: Make sure the file isn't corrupted, password-protected, or currently open in Excel.*")
+        st.info(f"**Error Details:** {e}")
         return None
 
 # --- MAIN BRANDING HEADER ---
@@ -147,7 +144,7 @@ st.markdown(
     f"""
     <div style="display: flex; align-items: center; gap: 5px; height: 65px; margin-bottom: 5px; margin-top: -15px; background: transparent;">
         <img src="https://i.pinimg.com/originals/15/c1/44/15c144e8dc552a100b3292d268854499.gif" style="height: 60px; width: auto; image-rendering: pixelated; mix-blend-mode: multiply;">
-        <span style="font-size: 24px; font-weight: 800; color: #0A1931; font-family: 'Source Sans Pro', sans-serif;">GAWA NI NONOY 👌</span>
+        <span style="font-size: 24px; font-weight: 800; font-family: 'Source Sans Pro', sans-serif;">GAWA NI NONOY 👌</span>
     </div>
     """, 
     unsafe_allow_html=True
@@ -157,7 +154,6 @@ st.markdown(
 side_control_panel, main_data_window = st.columns([0.20, 0.80], gap="small")
 active_file = st.session_state.file_capsule
 
-# Setup structural states for the dynamic layout loading system
 df = None
 all_headers = []
 
@@ -169,6 +165,13 @@ with side_control_panel:
     ])
     
     with tab_setup:
+        st.markdown("---")
+        theme_label = "☀️ Switch to Light Mode" if st.session_state.dark_mode else "🌙 Switch to Dark Mode"
+        if st.button(theme_label, use_container_width=True):
+            st.session_state.dark_mode = not st.session_state.dark_mode
+            st.rerun()
+            
+        st.markdown("---")
         st.markdown("### 📂 Setup Deck")
         raw_upload = st.file_uploader(
             "Drop workbook matrix:", 
@@ -180,7 +183,6 @@ with side_control_panel:
             active_file = raw_upload
 
         if st.session_state.file_capsule is not None:
-            st.markdown("---")
             if st.button("🗑️ Unload Current File", use_container_width=True):
                 st.session_state.file_capsule = None
                 st.session_state.confirmed_cols = []
@@ -200,6 +202,7 @@ if active_file is not None:
     
     with side_control_panel:
         with tab_setup:
+            st.markdown("---")
             st.markdown("### 👁️ Display Columns")
             st.markdown("<small>Pick your target headers, then click the button below to load:</small>", unsafe_allow_html=True)
             
@@ -207,7 +210,7 @@ if active_file is not None:
                 picked_columns = st.multiselect(
                     "Select columns to stream:",
                     options=all_headers,
-                    max_selections=25,  # Raised limit to comfortably allow 10+ columns
+                    max_selections=25,
                     default=[c for c in st.session_state.confirmed_cols if c in all_headers],
                     placeholder="Choose columns..."
                 )
@@ -289,18 +292,19 @@ if active_file is not None:
             # --- MAIN VISUAL CONTENT DATA DISPLAY LAYER ---
             with main_data_window:
                 clean_title = os.path.splitext(active_file.name)[0]
-                st.markdown(f'<div style="display: flex; align-items: center; gap: 5px; margin-top: -15px; margin-bottom: 2px;"><img src="https://i.pinimg.com/originals/c5/ee/51/c5ee5152fd8575cd966fa258addca1a1.gif" style="height: 100px; width: auto; image-rendering: pixelated; mix-blend-mode: multiply;"><span style="font-size: 30px; font-weight: 700; color: #0A1931;">{clean_title}</span></div>', unsafe_allow_html=True)
+                st.markdown(f'<div style="display: flex; align-items: center; gap: 5px; margin-top: -15px; margin-bottom: 2px;"><img src="https://i.pinimg.com/originals/c5/ee/51/c5ee5152fd8575cd966fa258addca1a1.gif" style="height: 100px; width: auto; image-rendering: pixelated; mix-blend-mode: multiply;"><span style="font-size: 30px; font-weight: 700;">{clean_title}</span></div>', unsafe_allow_html=True)
                 
                 if filtered_df.empty:
                     st.error("🙈😫 **DI MASEARCH NGANIII!!!!** " \
                              "CHECK SPELLING MUNA BAGO SEARCH OR CLEAR FILTERS TAPOS SEARCH ULIT")
                 else:
+                    # FIX: width=None removes the fixed constraint so columns automatically match text widths!
                     st.dataframe(
                         filtered_df,
-                        width="stretch", 
+                        use_container_width=True, 
                         height=650, 
                         hide_index=True,
-                        column_config={col: st.column_config.TextColumn(col, width="large", disabled=True) for col in visible_columns}
+                        column_config={col: st.column_config.TextColumn(col, width=None, disabled=True) for col in visible_columns}
                     )
                     st.markdown(f"""
                         <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.1rem 0.5rem; background: transparent; border-radius: 6px; font-size: 20px; margin-top: 2px;">
@@ -316,7 +320,7 @@ if active_file is not None:
     else:
         with main_data_window:
             clean_title = os.path.splitext(active_file.name)[0]
-            st.markdown(f'<div style="display: flex; align-items: center; gap: 5px; margin-top: -15px; margin-bottom: 2px;"><img src="https://i.pinimg.com/originals/c5/ee/51/c5ee5152fd8575cd966fa258addca1a1.gif" style="height: 100px; width: auto; image-rendering: pixelated; mix-blend-mode: multiply;"><span style="font-size: 30px; font-weight: 700; color: #0A1931;">{clean_title}</span></div>', unsafe_allow_html=True)
+            st.markdown(f'<div style="display: flex; align-items: center; gap: 5px; margin-top: -15px; margin-bottom: 2px;"><img src="https://i.pinimg.com/originals/c5/ee/51/c5ee5152fd8575cd966fa258addca1a1.gif" style="height: 100px; width: auto; image-rendering: pixelated; mix-blend-mode: multiply;"><span style="font-size: 30px; font-weight: 700;">{clean_title}</span></div>', unsafe_allow_html=True)
             st.info("💡 **File Staged Successfully!** Please use the **Column Picker** inside the `⚙️1.SETUP` tab on the left to select your targets, then click **APPLY & LOAD COLUMNS**.")
         with side_control_panel:
             with tab_search:
