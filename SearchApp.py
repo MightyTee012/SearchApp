@@ -288,7 +288,10 @@ if active_file is not None:
                     hide_index=True,
                     column_config={col: st.column_config.TextColumn(col, width="large", disabled=True) for col in visible_columns}
                 )
-                st.markdown(f"""<div style="display: flex; justify-content: space-between; align-items: center; padding: 0.1rem 0.5rem; background: transparent; border-radius:6px; font-size:20px; margin-top: 2px;"><div>📊 <b>Rows Viewable:</b> {len(filtered_df):,} of {len(df):,} records | 📋 <b>Columns Visible:</b> {len(visible_columns)} of {len(df.columns)}</div><div><img src="https://dl.glitter-graphics.com/pub/3709/3709531e18qrw4sle.gif" style="height: 100px; width: auto; image-rendering: pixelated; mix-blend-mode: multiply;"></div></div>""", unsafe_allow_html=True)
+                st.markdown(f"""<div style="display: flex; justify-content: space-between; align-items: left; padding: 0.1rem 0.5rem; background: transparent; border-radius:6px; font-size:20px; margin-top: 2px;">
+                            <div>📊 <b>Rows Viewable:</b> {len(filtered_df):,} of {len(df):,} records | 📋 <b>Columns Visible:</b> {len(visible_columns)} of {len(df.columns)}</div>
+                            <div><img src="https://dl.glitter-graphics.com/pub/3709/3709531e18qrw4sle.gif" style="height: 100px; width: auto; image-rendering: pixelated; mix-blend-mode: multiply; align-items: center;">
+                            </div></div>""", unsafe_allow_html=True)
 else:
     with side_control_panel:
         with tab_search:
