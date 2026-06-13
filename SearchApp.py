@@ -7,25 +7,22 @@ from io import BytesIO
 import pandas as pd
 import streamlit as st
 
-
 current_dir = os.path.dirname(os.path.abspath(__file__))
 if current_dir not in sys.path:
     sys.path.insert(0, current_dir)
-
 
 if sys.platform == 'win32':
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", DeprecationWarning)
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
-# Now we safely import your custom helper files
+# Imported using the exact case matching your file name
 import AppStyle as style
 
 # --- 2. INIT PAGE CONFIG ---
-# (CRITICAL: This must be the absolute first Streamlit command executed!)
 st.set_page_config(
     page_title="Team Permitting",
-    page_icon="📊", # Safe fallback icon
+    page_icon="📊", 
     layout="wide",
     initial_sidebar_state="collapsed" 
 )
@@ -76,7 +73,7 @@ def fuzzy_contains(series, query):
     return normalized_series.str.contains(normalized_query, regex=False)
 
 # --- DATA PROCESSING ENGINE ---
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=60, show_spinner=False)
 def load_large_data(file):
     try:
         if file.name.endswith('.csv'):
@@ -128,7 +125,9 @@ def load_large_data(file):
                 df[col] = df[col].astype(str).replace(['nan', '<NA>'], '')
         return df
     except Exception as e:
-        st.error(f"Error loading file: {e}")
+        # 🚨 NOTIFICATION: Clear visual indicator inside the layout if file reading crashes
+        st.error(f"🚨 **Upload Processing Failed!**")
+        st.info(f"**Error Details:** {e}\n\n*Tip: Make sure the file isn't corrupted, password-protected, or currently open in Excel.*")
         return None
 
 # --- MAIN BRANDING HEADER ---
@@ -170,12 +169,22 @@ with side_control_panel:
                 st.session_state.file_capsule = None
                 if "visible_cols_widget" in st.session_state:
                     del st.session_state["visible_cols_widget"]
+                if "last_loaded_name" in st.session_state:
+                    del st.session_state["last_loaded_name"]
                 st.cache_data.clear()
+                st.toast("🗑️ File unloaded successfully.", icon="ℹ️")
                 st.rerun()
 
 if active_file is not None:
-    df = load_large_data(active_file)
+    # 🔄 LOADING BAR: Shows an active reading status window to prevent blind waiting
+    with st.spinner("🔮 Nonoy's engine is optimizing your dataset... Please wait..."):
+        df = load_large_data(active_file)
+    
     if df is not None:
+        # 🎉 NOTIFICATION: Pop a quick modern success toast when a brand new file loads up perfectly
+        if "last_loaded_name" not in st.session_state or st.session_state.last_loaded_name != active_file.name:
+            st.toast(f"✅ Matrix loaded: {active_file.name}", icon="👌")
+            st.session_state.last_loaded_name = active_file.name
         
         if "visible_cols_widget" not in st.session_state:
             st.session_state.visible_cols_widget = df.columns.tolist()
@@ -267,14 +276,19 @@ if active_file is not None:
         with main_data_window:
             clean_title = os.path.splitext(active_file.name)[0]
             st.markdown(f'<div style="display: flex; align-items: center; gap: 5px; margin-top: -15px; margin-bottom: 2px;"><img src="https://i.pinimg.com/originals/c5/ee/51/c5ee5152fd8575cd966fa258addca1a1.gif" style="height: 100px; width: auto; image-rendering: pixelated; mix-blend-mode: multiply;"><span style="font-size: 30px; font-weight: 700; color: #0A1931;">{clean_title}</span></div>', unsafe_allow_html=True)
-            st.dataframe(
-                filtered_df,
-                width="stretch", 
-                height=650, 
-                hide_index=True,
-                column_config={col: st.column_config.TextColumn(col, width="large", disabled=True) for col in visible_columns}
-            )
-            st.markdown(f"""<div style="display: flex; justify-content: space-between; align-items: center; padding: 0.1rem 0.5rem; background: transparent; border-radius:6px; font-size:20px; margin-top: 2px;"><div>📊 <b>Rows Viewable:</b> {len(filtered_df):,} of {len(df):,} records | 📋 <b>Columns Visible:</b> {len(visible_columns)} of {len(df.columns)}</div><div><img src="https://dl.glitter-graphics.com/pub/3709/3709531e18qrw4sle.gif" style="height: 100px; width: auto; image-rendering: pixelated; mix-blend-mode: multiply;"></div></div>""", unsafe_allow_html=True)
+            
+            # 🕵️ NOTIFICATION: Explicit error alert if a search returns 0 matched records
+            if filtered_df.empty:
+                st.error("🕵️ **No matching records found!** Check your spelling or try clearing some filters in the Search panel.")
+            else:
+                st.dataframe(
+                    filtered_df,
+                    width="stretch", 
+                    height=650, 
+                    hide_index=True,
+                    column_config={col: st.column_config.TextColumn(col, width="large", disabled=True) for col in visible_columns}
+                )
+                st.markdown(f"""<div style="display: flex; justify-content: space-between; align-items: center; padding: 0.1rem 0.5rem; background: transparent; border-radius:6px; font-size:20px; margin-top: 2px;"><div>📊 <b>Rows Viewable:</b> {len(filtered_df):,} of {len(df):,} records | 📋 <b>Columns Visible:</b> {len(visible_columns)} of {len(df.columns)}</div><div><img src="https://dl.glitter-graphics.com/pub/3709/3709531e18qrw4sle.gif" style="height: 100px; width: auto; image-rendering: pixelated; mix-blend-mode: multiply;"></div></div>""", unsafe_allow_html=True)
 else:
     with side_control_panel:
         with tab_search:
