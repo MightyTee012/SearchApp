@@ -16,7 +16,7 @@ if sys.platform == 'win32':
         warnings.simplefilter("ignore", DeprecationWarning)
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
-# --- INIT PAGE CONFIG (MUST be the absolute first Streamlit command executed) ---
+# --- INIT PAGE CONFIG ---
 if "page_configured" not in st.session_state:
     st.set_page_config(
         page_title="Team Permitting",
@@ -41,9 +41,10 @@ try:
 except Exception as e:
     st.warning(f"Note: Could not inject custom AppStyle themes ({e}). Running on default theme.")
 
-# --- HIGH-DENSITY SCREEN OPTIMIZER ---
+# --- HIGH-DENSITY SCREEN OPTIMIZER & FLOATING NOTIFICATION STYLER ---
 st.markdown("""
     <style>
+        /* 1. LAYOUT OPTIMIZATIONS */
         .block-container {
             max-width: 100% !important;
             padding-left: 1.5rem !important;
@@ -53,6 +54,50 @@ st.markdown("""
         }
         div[data-testid="stVerticalBlock"] {
             gap: 0.6rem !important;
+        }
+        
+        /* 2. ANTI-FADE SPEED HACKS FOR WINDOWS 10 / OLD PCs */
+        div[data-testid="stAppViewContainer"] {
+            opacity: 1 !important;
+            filter: none !important;
+            transition: none !important;
+        }
+        div[data-testid="stAppViewBlockContainer"] {
+            opacity: 1 !important;
+            filter: none !important;
+            transition: none !important;
+        }
+        div[data-testid="stMain"] {
+            opacity: 1 !important;
+            filter: none !important;
+            transition: none !important;
+        }
+        div[data-testid="stDataFrame"] {
+            opacity: 1 !important;
+            filter: none !important;
+            transition: none !important;
+        }
+
+        /* 3. TRANSFORM SPINNER INTO A FLOATING NOTIFICATION DIALOG */
+        /* Forces the processing dialog to float beautifully over the data and auto-destruct when finished */
+        div[data-testid="stSpinner"] {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background-color: #1E1E24;
+            color: #FFFFFF;
+            padding: 16px 24px;
+            border-radius: 12px;
+            box-shadow: 0px 4px 20px rgba(0, 0, 0, 0.4);
+            z-index: 999999;
+            border: 1px solid #3A3A42;
+            min-width: 300px;
+        }
+        div[data-testid="stSpinner"] p {
+            margin: 0 !important;
+            font-size: 16px !important;
+            font-weight: 600 !important;
+            font-family: 'Source Sans Pro', sans-serif !important;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -64,17 +109,29 @@ def clear_all_searches_and_filters():
         if key.startswith("sidebar_filter_"):
             st.session_state[key] = ""
 
-def normalize_text(text):
-    if pd.isna(text):
+def clean_query_text(text):
+    if not text:
         return ""
-    return re.sub(r'[^a-zA-Z0-9]', '', str(text)).lower()
+    return str(text).strip()
 
-def fuzzy_contains(series, query):
-    normalized_query = normalize_text(query)
-    if not normalized_query:
+# RESTORED: Insensitive to case, spaces, symbols, and punctuation!
+def fast_fuzzy_contains(series, query):
+    clean_query = clean_query_text(query)
+    if not clean_query:
         return pd.Series(True, index=series.index)
-    normalized_series = series.astype(str).str.replace(r'[^a-zA-Z0-9]', '', regex=True).str.lower()
-    return normalized_series.str.contains(normalized_query, regex=False)
+    
+    # 1. Strip all symbols and spaces from the user's search query & lowercase it
+    norm_query = re.sub(r'[^a-zA-Z0-9]', '', clean_query).lower()
+    
+    # Fallback if user typed only symbols (like just running "---")
+    if not norm_query:
+        return series.str.contains(clean_query, case=False, regex=False, na=False)
+        
+    # 2. Normalize the dataset column the same way: strip symbols/spaces & lowercase
+    norm_series = series.str.replace(r'[^a-zA-Z0-9]', '', regex=True).str.lower()
+    
+    # 3. Perform the match on clean strings
+    return norm_series.str.contains(norm_query, regex=False, na=False)
 
 # --- LIGHTWEIGHT HEADER SCANNER ---
 @st.cache_data(ttl=60, show_spinner=False)
@@ -87,7 +144,7 @@ def scan_file_headers(file):
             df_headers = pd.read_excel(file, engine='openpyxl', nrows=0)
         return df_headers.columns.tolist()
     except Exception as e:
-        st.error(f"Error reading file headers: {e}")
+        st.toast(f"🚨 Header Scan Error: {e}", icon="❌")
         return []
 
 # --- OPTIMIZED BULLETPROOF DATA PROCESSING ENGINE ---
@@ -100,15 +157,23 @@ def load_large_data(file, usecols=None):
         else:
             df = pd.read_excel(file, engine='openpyxl', usecols=usecols, dtype=str)
 
+        # NaN/None cleaning
+        df = df.fillna('')
+        for col in df.columns:
+            df[col] = df[col].astype(str).str.strip()
+            df[col] = df[col].apply(lambda x: x[:-2] if x.endswith('.0') and x[:-2].isdigit() else x)
+            df[col] = df[col].replace(['nan', '<NA>', 'None', 'NaN', '<na>'], '')
+
+        # Selective date parsing
         for col in df.columns:
             col_lower = col.lower()
             is_target_date_column = any(k in col_lower for k in ['date', 'time', 'prepared', 'validity', 'valid', 'timestamp'])
 
             if is_target_date_column:
                 def safe_isolate_timestamp(val):
-                    if pd.isna(val) or str(val).strip().lower() in ['nan', '', '<na>', 'none']:
-                        return ""
                     val_str = str(val).strip()
+                    if not val_str or val_str.lower() in ['nan', '', '<na>', 'none']:
+                        return ""
                     
                     if val_str.replace('.', '', 1).isdigit():
                         try:
@@ -130,14 +195,10 @@ def load_large_data(file, usecols=None):
                     return val_str
 
                 df[col] = df[col].apply(safe_isolate_timestamp)
-            else:
-                df[col] = df[col].fillna('').astype(str).str.strip().str.replace(r'\.0$', '', regex=True)
-                df[col] = df[col].replace(['nan', '<NA>', 'None', 'NaN'], '')
 
         return df
     except Exception as e:
-        st.error(f"🚨 **Upload Processing Failed!**")
-        st.info(f"**Error Details:** {e}")
+        st.toast(f"🚨 Upload Processing Failed: {e}", icon="❌")
         return None
 
 # --- MAIN BRANDING HEADER ---
@@ -155,9 +216,6 @@ active_file = st.session_state.file_capsule
 df = None
 all_headers = []
 
-# ==========================================
-# 🎯 PHASE 1: INITIAL LIGHTWEIGHT LANDING VIEW (NO FILE YET)
-# ==========================================
 if active_file is None:
     st.markdown("### 📂 Setup Deck")
     raw_upload = st.file_uploader(
@@ -167,21 +225,15 @@ if active_file is None:
     )
     if raw_upload is not None:
         st.session_state.file_capsule = raw_upload
+        st.toast("📂 File dropped! Initiating layout...", icon="ℹ️")
         st.rerun()
         
     st.info("💡 **Workspace Idle.** Drop a source data file into the setup panel above to instantly configure features.")
 
-# ==========================================
-# 🎯 PHASE 2: DASHBOARD VIEW (ONCE FILE IS UPLOADED)
-# ==========================================
 else:
-    # Outer Layout Setup for App Panel
     side_control_panel, main_data_window = st.columns([0.20, 0.80], gap="small")
-    
-    # Scan headers safely
     all_headers = scan_file_headers(active_file)
     
-    # Auto-initialize columns to all columns if it's a new file
     if "last_loaded_name" not in st.session_state or st.session_state.last_loaded_name != active_file.name:
         st.session_state.confirmed_cols = all_headers
         st.session_state.last_loaded_name = active_file.name
@@ -194,7 +246,7 @@ else:
                 "💾3.EXPORT"
             ])
         except Exception:
-            st.error("Failed to generate application tabs. Please unload file or check formatting.")
+            st.toast("🚨 Failed to generate application tabs.", icon="❌")
             st.stop()
         
         with tab_setup:
@@ -221,7 +273,6 @@ else:
             st.markdown("---")
             st.markdown("### ✅ Display Columns")
             
-            # --- INTERACTIVE ACTION BUTTONS ---
             btn_col1, btn_col2 = st.columns(2, gap="small")
             with btn_col1:
                 if st.button("✅ Select All", use_container_width=True):
@@ -236,78 +287,95 @@ else:
                         st.session_state[f"chk_{h_col}"] = False
                     st.rerun()
             
-            # Form housing the scrollable checkbox stream
             with st.form(key="batch_column_form", border=False):
                 picked_columns = []
-                
                 with st.container(height=280, border=True):
                     for h_col in all_headers:
-                        # Establish state connection safely
                         is_checked = h_col in st.session_state.confirmed_cols
-                        
                         if st.checkbox(h_col, value=is_checked, key=f"chk_{h_col}"):
                             picked_columns.append(h_col)
                 
                 st.markdown("<div style='margin-bottom: 5px;'></div>", unsafe_allow_html=True)
                 load_triggered = st.form_submit_button("⚡ APPLY & LOAD COLUMNS", use_container_width=True)
-                
                 if load_triggered:
                     st.session_state.confirmed_cols = picked_columns
                     st.rerun()
 
-    # --- CONDITIONAL RUNTIME PROCESSING ---
     if st.session_state.confirmed_cols:
         visible_columns = st.session_state.confirmed_cols
         
-        with st.spinner("⏳ Nonoy's engine is optimizing your dataset... Please wait..."):
+        # --- AUTO-CLOSING FILE LOADING NOTIFICATION ---
+        with st.spinner("⏳ Nonoy's engine is processing your dataset... Please wait..."):
             df = load_large_data(active_file, usecols=visible_columns)
             
         if df is not None:
             filtered_df = df[visible_columns].copy()
 
-            # --- SEARCH ENGINE INTERFACE GENERATION ---
             with side_control_panel:
                 with tab_search:
-                    st.markdown("###🔍Main Search")
-                    st.button("❌ CLEAR ", on_click=clear_all_searches_and_filters, key="reset_search_deck_btn", use_container_width=True)
-                    st.markdown("<div style='margin-bottom: 2px;'></div>", unsafe_allow_html=True)
+                    st.markdown("### 🔍 Main Search")
+                    if st.button("❌ CLEAR ALL FILTERS", key="reset_search_deck_btn", use_container_width=True):
+                        clear_all_searches_and_filters()
+                        st.toast("🧹 All search filters cleared!", icon="🧹")
+                        st.rerun()
+                    st.markdown("<div style='margin-bottom: 5px;'></div>", unsafe_allow_html=True)
                     
-                    with st.form(key="optimized_search_form", border=False):
-                        st.text_input(
-                            "Main Search Bar:", 
-                            placeholder="🔍 Search...",
-                            key="global_search_input"
-                        )
-                        st.markdown("---")
-                        st.markdown("### ⚙️Sub-Filters")
-                        
-                        with st.container(height=400, border=False):
-                            for col_name in visible_columns:
-                                st.text_input(
-                                    f"{col_name}", 
-                                    key=f"sidebar_filter_{col_name}",
-                                    placeholder=f"🔎 {col_name}..."
-                                )
-                        
-                        st.form_submit_button(label="⚡ RUN SEARCH FILTERS", use_container_width=True)
+                    current_global_query = st.session_state.get("global_search_input", "")
+                    st.text_input(
+                        "Main Search Bar:", 
+                        placeholder="🔍 Type & press Enter...",
+                        key="global_search_input",
+                        value=current_global_query
+                    )
+                    st.markdown("---")
+                    st.markdown("### ⚙️ Sub-Filters")
+                    
+                    with st.container(height=400, border=False):
+                        for col_name in visible_columns:
+                            filter_key = f"sidebar_filter_{col_name}"
+                            current_filter_val = st.session_state.get(filter_key, "")
+                            st.text_input(
+                                f"{col_name}", 
+                                key=filter_key,
+                                placeholder=f"🔎 Filter {col_name}...",
+                                value=current_filter_val
+                            )
 
-            # --- SEARCH DATA PROCESSING STRATIFICATION ---
-            if st.session_state.get("global_search_input", ""):
-                search_query = st.session_state.global_search_input
-                masks = [fuzzy_contains(filtered_df[col], search_query) for col in visible_columns]
-                global_mask = pd.concat(masks, axis=1).any(axis=1)
-                filtered_df = filtered_df[global_mask]
+            # --- AUTO-CLOSING SEARCH & FILTER NOTIFICATION ---
+            has_active_filter = bool(st.session_state.get("global_search_input", "")) or any(
+                st.session_state.get(f"sidebar_filter_{col}", "") for col in visible_columns
+            )
+            
+            if has_active_filter:
+                with st.spinner("⚡ Filtering records... Please wait..."):
+                    if st.session_state.get("global_search_input", ""):
+                        search_query = st.session_state.global_search_input
+                        masks = [fast_fuzzy_contains(filtered_df[col], search_query) for col in visible_columns]
+                        global_mask = pd.concat(masks, axis=1).any(axis=1)
+                        filtered_df = filtered_df[global_mask]
 
-            for col_name in visible_columns:
-                search_val = st.session_state.get(f"sidebar_filter_{col_name}", "")
-                if search_val:
-                    col_mask = fuzzy_contains(filtered_df[col_name], search_val)
-                    filtered_df = filtered_df[col_mask]
+                    for col_name in visible_columns:
+                        search_val = st.session_state.get(f"sidebar_filter_{col_name}", "")
+                        if search_val:
+                            col_mask = fast_fuzzy_contains(filtered_df[col_name], search_val)
+                            filtered_df = filtered_df[col_mask]
+            else:
+                # Regular execution if no queries are active
+                if st.session_state.get("global_search_input", ""):
+                    search_query = st.session_state.global_search_input
+                    masks = [fast_fuzzy_contains(filtered_df[col], search_query) for col in visible_columns]
+                    global_mask = pd.concat(masks, axis=1).any(axis=1)
+                    filtered_df = filtered_df[global_mask]
 
-            # --- EXPORT DECK COMPILATION MANAGEMENT ---
+                for col_name in visible_columns:
+                    search_val = st.session_state.get(f"sidebar_filter_{col_name}", "")
+                    if search_val:
+                        col_mask = fast_fuzzy_contains(filtered_df[col_name], search_val)
+                        filtered_df = filtered_df[col_mask]
+
             with side_control_panel:
                 with tab_download:
-                    st.markdown("### 💾Export Deck")
+                    st.markdown("### 💾 Export Deck")
                     def convert_df_to_excel(df_to_save):
                         output = BytesIO()
                         with pd.ExcelWriter(output, engine='openpyxl') as writer:
@@ -326,7 +394,6 @@ else:
                     else:
                         st.warning("No metrics match your search parameters to compile.")
 
-            # --- MAIN VISUAL CONTENT DATA DISPLAY LAYER ---
             with main_data_window:
                 clean_title = os.path.splitext(active_file.name)[0]
                 st.markdown(f'<div style="display: flex; align-items: center; gap: 5px; margin-top: -15px; margin-bottom: 2px;"><img src="https://i.pinimg.com/originals/c5/ee/51/c5ee5152fd8575cd966fa258addca1a1.gif" style="height: 100px; width: auto; image-rendering: pixelated; mix-blend-mode: multiply;"><span style="font-size: 30px; font-weight: 700;">{clean_title}</span></div>', unsafe_allow_html=True)
@@ -338,9 +405,9 @@ else:
                         filtered_df,
                         use_container_width=True, 
                         height=650, 
-                        hide_index=True,
-                        column_config={col: st.column_config.TextColumn(col, width=None, disabled=True) for col in visible_columns}
+                        hide_index=True
                     )
+                    
                     st.markdown(f"""
                         <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.1rem 0.5rem; background: transparent; border-radius: 6px; font-size: 20px; margin-top: 2px;">
                             <div>
